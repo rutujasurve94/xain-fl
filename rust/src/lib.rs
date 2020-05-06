@@ -14,6 +14,7 @@ pub mod mask;
 pub mod message;
 pub mod participant;
 pub mod service;
+pub mod storage;
 
 use std::collections::HashMap;
 
