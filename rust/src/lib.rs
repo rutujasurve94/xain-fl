@@ -7,15 +7,16 @@ extern crate serde;
 extern crate tracing;
 
 pub mod certificate;
-pub mod client;
+pub mod events;
+// pub mod client;
 pub mod coordinator;
 pub mod crypto;
 pub mod mask;
 pub mod message;
 pub mod participant;
 pub mod sdk;
-pub mod service;
 pub mod state_machine;
+pub mod services;
 
 use std::collections::HashMap;
 
