@@ -123,8 +123,7 @@ impl Connection {
         pk: &SumParticipantPublicKey,
         ephm_pk: &SumParticipantEphemeralPublicKey,
     ) -> Result<usize, RedisError> {
-        let result = self.connection.hset_nx("sum_dict", pk, ephm_pk).await;
-        result
+        self.connection.hset_nx("sum_dict", pk, ephm_pk).await
     }
 
     /// Remove an entry in the [`SumDict`].
