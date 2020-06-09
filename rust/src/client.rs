@@ -1,7 +1,8 @@
 use crate::{
     crypto::ByteObject,
     participant::{Participant, Task},
-    service::Handle,
+    request::ClientReq,
+    service::{Handle, data::RoundParametersData},
     CoordinatorPublicKey,
     InitError,
     PetError,
@@ -51,6 +52,8 @@ pub struct Client {
     coordinator_pk: CoordinatorPublicKey,
 
     id: u32, // NOTE identifier for client for testing; may remove later
+
+    request: ClientReq,
 }
 
 impl Client {
@@ -59,7 +62,7 @@ impl Client {
     /// `period`: time period at which to poll for service data, in seconds.
     /// Returns `Ok(client)` if [`Client`] `client` initialised successfully
     /// Returns `Err(err)` if `ClientError` `err` occurred
-    pub fn new(period: u64) -> Result<Self, ClientError> {
+    pub fn new(period: u64, addr: &'static str) -> Result<Self, ClientError> {
         let (handle, _events) = Handle::new();
         let participant = Participant::new().map_err(ClientError::ParticipantInitErr)?;
         Ok(Self {
@@ -68,6 +71,7 @@ impl Client {
             interval: time::interval(Duration::from_secs(period)),
             coordinator_pk: CoordinatorPublicKey::zeroed(),
             id: 0,
+            request: ClientReq::new(addr),
         })
     }
 
@@ -85,6 +89,19 @@ impl Client {
             interval: time::interval(Duration::from_secs(period)),
             coordinator_pk: CoordinatorPublicKey::zeroed(),
             id,
+            request: ClientReq::new(""),
+        })
+    }
+
+    pub fn new_with_addr(period: u64, handle: Handle, addr: &'static str) -> Result<Self, ClientError> {
+        let participant = Participant::new().map_err(ClientError::ParticipantInitErr)?;
+        Ok(Self {
+            handle,
+            participant,
+            interval: time::interval(Duration::from_secs(period)),
+            coordinator_pk: CoordinatorPublicKey::zeroed(),
+            id: 0,
+            request: ClientReq::new(addr),
         })
     }
 
@@ -103,7 +120,16 @@ impl Client {
     /// [`Client`] duties within a round
     pub async fn during_round(&mut self) -> Result<Task, ClientError> {
         loop {
-            if let Some(round_params_data) = self.handle.get_round_parameters().await {
+            if let Some(round_params_data_ser) = self.handle.get_round_parameters().await {
+                let round_params_data: RoundParametersData = bincode::deserialize(&round_params_data_ser[..])
+                    .map_err(|e| {
+                        error!(
+                            "failed to deserialize round parameters data: {}: {:?}",
+                            e,
+                            &round_params_data_ser[..],
+                        );
+                    ClientError::DeserialiseErr(e)
+                })?;
                 if let Some(ref round_params) = round_params_data.round_parameters {
                     if round_params.pk != self.coordinator_pk {
                         // new round: save coordinator pk
