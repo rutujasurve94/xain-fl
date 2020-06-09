@@ -12,6 +12,7 @@ use crate::{
 use std::{sync::Arc, time::Duration};
 use thiserror::Error;
 use tokio::time;
+use reqwest::Error;
 
 /// Client-side errors
 #[derive(Debug, Error)]
@@ -27,6 +28,9 @@ pub enum ClientError {
     /// Error deserialising service data
     #[error("failed to deserialise service data: {0}")]
     DeserialiseErr(bincode::Error),
+
+    #[error("network-related error: {0}")]
+    NetworkError(reqwest::Error),
 
     /// General client errors
     #[error("unexpected client error")]
@@ -121,7 +125,8 @@ impl Client {
     /// [`Client`] duties within a round
     pub async fn during_round(&mut self) -> Result<Task, ClientError> {
         loop {
-            if let Some(round_params_data_ser) = self.handle.get_round_parameters().await {
+            if let Ok(round_params_data_ser) = self.request.get_params().await {
+//          if let Some(round_params_data_ser) = self.handle.get_round_parameters().await {
                 let round_params_data: RoundParametersData = bincode::deserialize(&round_params_data_ser[..])
                     .map_err(|e| {
                         error!(
@@ -166,8 +171,9 @@ impl Client {
         self.handle.send_message(sum1_msg).await;
 
         let pk = self.participant.pk;
-        let seed_dict_ser: Arc<Vec<u8>> = loop {
-            if let Some(seed_dict_ser) = self.handle.get_seed_dict(pk).await {
+        let seed_dict_ser = loop {
+            if let Ok(seed_dict_ser) = self.request.get_seeds(pk).await {
+//          if let Some(seed_dict_ser) = self.handle.get_seed_dict(pk).await {
                 break seed_dict_ser;
             }
             debug!(client_id = %self.id, "seed dictionary not ready, retrying.");
@@ -201,8 +207,9 @@ impl Client {
         // currently, models are not yet supported fully; later on, we should
         // train a model here before polling for the sum dictionary
 
-        let sum_dict_ser: Arc<Vec<u8>> = loop {
-            if let Some(sum_dict_ser) = self.handle.get_sum_dict().await {
+        let sum_dict_ser = loop {
+            if let Ok(sum_dict_ser) = self.request.get_sums().await {
+//          if let Some(sum_dict_ser) = self.handle.get_sum_dict().await {
                 break sum_dict_ser;
             }
             debug!(client_id = %self.id, "sum dictionary not ready, retrying.");
