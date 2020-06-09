@@ -86,6 +86,14 @@ impl Aggregation {
         }
 
         if self.object.config != mask.config || self.object.data.len() != mask.data.len() {
+            warn!("self.object = {:?}", self.object);
+            warn!("mask = {:?}", mask);
+
+
+            error!("self.object.config {:?}", self.object.config);
+            error!("mask.config {:?}", mask.config);
+            error!("self.object.data {:?}", self.object.data.len());
+            error!("mask.data {:?}", mask.data.len());
             return Err(UnmaskingError::MaskMismatch);
         }
 

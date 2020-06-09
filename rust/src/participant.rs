@@ -209,12 +209,16 @@ impl Participant {
         let mut aggregation = Aggregation::new(mask_config);
         for seed in mask_seeds.into_iter() {
             let mask = seed.derive_mask(mask_len, mask_config);
+            warn!("mask_len ************ {}", mask_len);
+            warn!("mask length ************ {}", mask.data.len());
             aggregation
                 .validate_aggregation(&mask)
                 .map_err(|_| PetError::InvalidMask)?;
             aggregation.aggregate(mask);
         }
-        Ok(aggregation.into())
+        let mask = aggregation.into();
+        info!("mask sent by sum2 participants: {:?}", mask);
+        Ok(mask)
     }
 }
 
