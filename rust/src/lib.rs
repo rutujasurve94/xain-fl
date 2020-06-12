@@ -15,6 +15,7 @@ pub mod message;
 pub mod participant;
 pub mod sdk;
 pub mod service;
+pub mod state_machine;
 
 use std::collections::HashMap;
 
