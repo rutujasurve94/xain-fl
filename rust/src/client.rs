@@ -14,7 +14,6 @@ use tokio::time;
 /// Client-side errors
 #[derive(Debug, Error)]
 pub enum ClientError {
-
     #[error("failed to initialise participant: {0}")]
     ParticipantInitErr(InitError),
 
@@ -40,7 +39,6 @@ pub enum ClientError {
 /// its messages and delegating their processing to the underlying
 /// [`Participant`].
 pub struct Client {
-
     /// The underlying [`Participant`]
     participant: Participant,
 
@@ -165,7 +163,7 @@ impl Client {
                 self.proxy.post_message(sum2_msg).await?;
 
                 info!(client_id = %self.id, "sum participant completed a round");
-                break Ok(Task::Sum)
+                break Ok(Task::Sum);
             }
             // None case
             debug!(client_id = %self.id, "seed dict not ready, retrying.");
@@ -186,7 +184,7 @@ impl Client {
                 self.proxy.post_message(upd_msg).await?;
 
                 info!(client_id = %self.id, "update participant completed a round");
-                break Ok(Task::Update)
+                break Ok(Task::Update);
             }
             // None case
             debug!(client_id = %self.id, "sum dict not ready, retrying.");
@@ -194,4 +192,3 @@ impl Client {
         }
     }
 }
-
