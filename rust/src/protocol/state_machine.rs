@@ -1,121 +1,26 @@
 use crate::{
-    coordinator::{MaskDict, RoundFailed, RoundSeed},
-    crypto::ByteObject,
-    mask::{BoundType, DataType, GroupType, MaskConfig, ModelType},
-    state_machine::{
-        idle::Idle,
-        shutdown::Shutdown,
-        sum::Sum,
-        sum2::Sum2,
-        unmask::Unmask,
-        update::Update,
+    mask::UnmaskingError,
+    protocol::{
+        coordinator::CoordinatorState,
+        phases::{Idle, PhaseState, Shutdown, StateError, Sum, Sum2, Unmask, Update},
+        requests::Request,
     },
-    CoordinatorPublicKey,
-    CoordinatorSecretKey,
     InitError,
-    PetError,
-    SeedDict,
-    SumDict,
 };
+
 use derive_more::From;
-use std::default::Default;
 use thiserror::Error;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
 
-mod error;
-mod idle;
-pub mod requests;
-mod shutdown;
-mod sum;
-mod sum2;
-mod unmask;
-mod update;
-
-use requests::Request;
-
-#[derive(Debug)]
-pub struct CoordinatorState {
-    pk: CoordinatorPublicKey, // 32 bytes
-    sk: CoordinatorSecretKey, // 32 bytes
-
-    // round parameters
-    sum: f64,
-    update: f64,
-    seed: RoundSeed,
-    min_sum: usize,
-    min_update: usize,
-    expected_participants: usize,
-
-    /// The masking configuration
-    mask_config: MaskConfig,
-}
-
-impl Default for CoordinatorState {
-    fn default() -> Self {
-        let pk = CoordinatorPublicKey::zeroed();
-        let sk = CoordinatorSecretKey::zeroed();
-        let sum = 0.4_f64;
-        let update = 0.5_f64;
-        let seed = RoundSeed::zeroed();
-        let min_sum = 1_usize;
-        let min_update = 3_usize;
-        let expected_participants = 10_usize;
-        let mask_config = MaskConfig {
-            group_type: GroupType::Prime,
-            data_type: DataType::F32,
-            bound_type: BoundType::B0,
-            model_type: ModelType::M3,
-        };
-        Self {
-            pk,
-            sk,
-            sum,
-            update,
-            seed,
-            min_sum,
-            min_update,
-            expected_participants,
-            mask_config,
-        }
-    }
-}
-
-#[derive(Error, Debug)]
-pub enum StateError {
-    #[error("state failed: channel error: {0}")]
-    ChannelError(&'static str),
-    #[error("state failed: round error: {0}")]
-    RoundError(#[from] RoundFailed),
-}
-
-pub struct PhaseState<S> {
-    // Inner state
-    inner: S,
-    // Coordinator state
-    coordinator_state: CoordinatorState,
-    // Request receiver halve
-    request_rx: mpsc::UnboundedReceiver<Request>,
-}
-
-// Functions that are available to all states
-impl<S> PhaseState<S> {
-    /// Receives the next [`Request`].
-    /// Returns [`StateError::ChannelError`] when all sender halve have been dropped.
-    async fn next_request(&mut self) -> Result<Request, StateError> {
-        debug!("received new message");
-        self.request_rx.recv().await.ok_or(StateError::ChannelError(
-            "all message senders have been dropped!",
-        ))
-    }
-
-    /// Handle an invalid request.
-    fn handle_invalid_message(response_tx: oneshot::Sender<Result<(), PetError>>) {
-        debug!("invalid message");
-        // `send` returns an error if the receiver halve has already been dropped. This means that
-        // the receiver is not interested in the response of the request. Therefore the error is
-        // ignored.
-        let _ = response_tx.send(Err(PetError::InvalidMessage));
-    }
+/// Error that occurs when unmasking of the global model fails
+#[derive(Error, Debug, Eq, PartialEq)]
+pub enum RoundFailed {
+    #[error("ambiguous masks were computed by the sum participants")]
+    AmbiguousMasks,
+    #[error("no mask found")]
+    NoMask,
+    #[error("unmasking error: {0}")]
+    Unmasking(#[from] UnmaskingError),
 }
 
 #[derive(From)]
@@ -145,16 +50,13 @@ impl StateMachine {
 
     /// Create a new state machine with the initial state `Idle`.
     /// Fails if there is insufficient system entropy to generate secrets.
-    pub fn new() -> Result<(mpsc::UnboundedSender<Request>, Self), InitError> {
+    pub fn new(
+        coordinator_state: CoordinatorState,
+    ) -> Result<(mpsc::UnboundedSender<Request>, Self), InitError> {
         // crucial: init must be called before anything else in this module
         sodiumoxide::init().or(Err(InitError))?;
 
         let (request_tx, request_rx) = mpsc::unbounded_channel::<Request>();
-        let coordinator_state = CoordinatorState {
-            seed: RoundSeed::generate(),
-            ..Default::default()
-        };
-
         Ok((
             request_tx,
             PhaseState::<Idle>::new(coordinator_state, request_rx).into(),
@@ -164,11 +66,23 @@ impl StateMachine {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::{
-        crypto::{generate_encrypt_key_pair, generate_signing_key_pair},
-        mask::{EncryptedMaskSeed, MaskObject, MaskSeed},
-        state_machine::requests::{Sum2Request, SumRequest, UpdateRequest},
+        crypto::{generate_encrypt_key_pair, generate_signing_key_pair, ByteObject},
+        mask::{
+            BoundType,
+            DataType,
+            EncryptedMaskSeed,
+            GroupType,
+            MaskConfig,
+            MaskObject,
+            MaskSeed,
+            ModelType,
+        },
+        protocol::{
+            coordinator::{CoordinatorConfig, CoordinatorState},
+            requests::{Request, Sum2Request, SumRequest, UpdateRequest},
+            state_machine::StateMachine,
+        },
         LocalSeedDict,
         PetError,
         SumParticipantPublicKey,
@@ -302,7 +216,21 @@ mod tests {
     #[tokio::test]
     async fn test_state_machine() {
         enable_logging();
-        let (request_tx, mut state_machine) = StateMachine::new().unwrap();
+        let config = CoordinatorConfig {
+            initial_sum_ratio: 0.4,
+            initial_update_ratio: 0.5,
+            min_sum: 1,
+            min_update: 3,
+            mask_config: MaskConfig {
+                group_type: GroupType::Prime,
+                data_type: DataType::F32,
+                bound_type: BoundType::B0,
+                model_type: ModelType::M3,
+            },
+            expected_participants: 10,
+        };
+        let coordinator_state = CoordinatorState::new(config);
+        let (request_tx, mut state_machine) = StateMachine::new(coordinator_state).unwrap();
         assert!(is_idle(&state_machine));
 
         state_machine = state_machine.next().await.unwrap(); // transition from init to sum state

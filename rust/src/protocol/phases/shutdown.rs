@@ -1,4 +1,10 @@
-use super::{CoordinatorState, PhaseState, Request, StateMachine};
+use crate::protocol::{
+    coordinator::CoordinatorState,
+    phases::PhaseState,
+    requests::Request,
+    state_machine::StateMachine,
+};
+
 use tokio::sync::mpsc;
 
 #[derive(Debug)]

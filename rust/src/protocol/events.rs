@@ -8,8 +8,8 @@ use futures::Stream;
 use tokio::sync::watch;
 
 use crate::{
-    coordinator::{Phase, RoundId, RoundParameters},
     crypto::KeyPair,
+    protocol::coordinator::{Phase, RoundId, RoundParameters},
     SeedDict,
     SumDict,
 };

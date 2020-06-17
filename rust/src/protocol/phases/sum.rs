@@ -1,14 +1,15 @@
-use super::{
-    requests::SumRequest,
-    update::Update,
-    CoordinatorState,
-    PhaseState,
-    Request,
+use crate::{
+    crypto::KeyPair,
+    protocol::{
+        coordinator::CoordinatorState,
+        phases::{PhaseState, StateError, Update},
+        requests::{Request, SumRequest},
+        state_machine::StateMachine,
+    },
+    LocalSeedDict,
     SeedDict,
-    StateError,
-    StateMachine,
+    SumDict,
 };
-use crate::{crypto::generate_encrypt_key_pair, LocalSeedDict, SumDict};
 use tokio::sync::mpsc;
 
 #[derive(Debug)]
@@ -58,7 +59,8 @@ impl PhaseState<Sum> {
 
         // the scalar must be published later for the participants
         let _scalar = 1_f64
-            / (self.coordinator_state.expected_participants as f64 * self.coordinator_state.update);
+            / (self.coordinator_state.expected_participants as f64
+                * self.coordinator_state.round_params.update);
         Ok(self.freeze_sum_dict())
     }
 
@@ -98,9 +100,7 @@ impl PhaseState<Sum> {
 
     /// Generate fresh round credentials.
     fn gen_round_keypair(&mut self) {
-        let (pk, sk) = generate_encrypt_key_pair();
-        self.coordinator_state.pk = pk;
-        self.coordinator_state.sk = sk;
+        self.coordinator_state.keys = KeyPair::generate();
     }
 
     /// Check whether enough sum participants submitted their ephemeral keys to start the update

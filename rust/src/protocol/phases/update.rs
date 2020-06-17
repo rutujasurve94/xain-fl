@@ -1,18 +1,15 @@
-use super::{
-    requests::UpdateRequest,
-    sum2::Sum2,
-    CoordinatorState,
-    PhaseState,
-    Request,
-    SeedDict,
-    StateError,
-    StateMachine,
-    SumDict,
-};
 use crate::{
     mask::{Aggregation, MaskObject},
+    protocol::{
+        coordinator::CoordinatorState,
+        phases::{PhaseState, StateError, Sum2},
+        requests::{Request, UpdateRequest},
+        state_machine::StateMachine,
+    },
     LocalSeedDict,
     PetError,
+    SeedDict,
+    SumDict,
     UpdateParticipantPublicKey,
 };
 use tokio::sync::mpsc;

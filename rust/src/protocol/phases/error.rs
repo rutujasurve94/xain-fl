@@ -1,13 +1,19 @@
-use super::{
-    idle::Idle,
-    shutdown::Shutdown,
-    CoordinatorState,
-    PhaseState,
-    Request,
-    StateError,
-    StateMachine,
+use crate::protocol::{
+    coordinator::CoordinatorState,
+    phases::{Idle, PhaseState, Shutdown},
+    requests::Request,
+    state_machine::{RoundFailed, StateMachine},
 };
+use thiserror::Error;
 use tokio::sync::mpsc;
+
+#[derive(Error, Debug)]
+pub enum StateError {
+    #[error("state failed: channel error: {0}")]
+    ChannelError(&'static str),
+    #[error("state failed: round error: {0}")]
+    RoundError(#[from] RoundFailed),
+}
 
 impl PhaseState<StateError> {
     pub fn new(

@@ -1,17 +1,13 @@
-use super::{
-    idle::Idle,
-    CoordinatorState,
-    MaskDict,
-    PhaseState,
-    Request,
-    StateError,
-    StateMachine,
+use crate::{
+    mask::{Aggregation, MaskObject, Model},
+    protocol::{
+        coordinator::{CoordinatorState, MaskDict},
+        phases::{Idle, PhaseState, StateError},
+        requests::Request,
+        state_machine::{RoundFailed, StateMachine},
+    },
 };
 
-use crate::{
-    coordinator::RoundFailed,
-    mask::{Aggregation, MaskObject, Model},
-};
 use std::cmp::Ordering;
 use tokio::sync::mpsc;
 

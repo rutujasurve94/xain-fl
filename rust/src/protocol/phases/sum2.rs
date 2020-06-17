@@ -1,20 +1,16 @@
-use super::{
-    requests::Sum2Request,
-    unmask::Unmask,
-    CoordinatorState,
-    MaskDict,
-    PhaseState,
-    Request,
-    StateError,
-    StateMachine,
-    SumDict,
-};
-
 use crate::{
     mask::{Aggregation, MaskObject},
+    protocol::{
+        coordinator::{CoordinatorState, MaskDict},
+        phases::{PhaseState, StateError, Unmask},
+        requests::{Request, Sum2Request},
+        state_machine::StateMachine,
+    },
     PetError,
+    SumDict,
     SumParticipantPublicKey,
 };
+
 use tokio::sync::mpsc;
 
 #[derive(Debug)]
