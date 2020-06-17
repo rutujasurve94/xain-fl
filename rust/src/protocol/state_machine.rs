@@ -35,19 +35,6 @@ pub enum StateMachine {
 }
 
 impl StateMachine {
-    /// Move to the next state and consume the old one.
-    pub async fn next(self) -> Option<Self> {
-        match self {
-            StateMachine::Idle(state) => state.next().await,
-            StateMachine::Sum(state) => state.next().await,
-            StateMachine::Update(state) => state.next().await,
-            StateMachine::Sum2(state) => state.next().await,
-            StateMachine::Unmask(state) => state.next().await,
-            StateMachine::Error(state) => state.next().await,
-            StateMachine::Shutdown(state) => state.next().await,
-        }
-    }
-
     /// Create a new state machine with the initial state `Idle`.
     /// Fails if there is insufficient system entropy to generate secrets.
     pub fn new(
@@ -61,6 +48,26 @@ impl StateMachine {
             request_tx,
             PhaseState::<Idle>::new(coordinator_state, request_rx).into(),
         ))
+    }
+
+    /// Move to the next state and consume the old one.
+    pub async fn next(self) -> Option<Self> {
+        match self {
+            StateMachine::Idle(state) => state.next().await,
+            StateMachine::Sum(state) => state.next().await,
+            StateMachine::Update(state) => state.next().await,
+            StateMachine::Sum2(state) => state.next().await,
+            StateMachine::Unmask(state) => state.next().await,
+            StateMachine::Error(state) => state.next().await,
+            StateMachine::Shutdown(state) => state.next().await,
+        }
+    }
+
+    /// Run the state machine until it shuts down.
+    pub async fn run(mut self) -> Option<Self> {
+        loop {
+            self = self.next().await?;
+        }
     }
 }
 
